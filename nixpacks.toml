@@ -1,0 +1,16 @@
+# nixpacks.toml
+# Tells Railway (which uses Nixpacks) to install Tesseract OCR
+# before building the Python dependencies.
+#
+# tesseract5            → Tesseract binary (version 5.x)
+# tesseract5_traineddata-eng  → English language data
+# tesseract5_traineddata-ara  → Arabic language data
+#
+# This file is read automatically by Railway on every deploy.
+
+[phases.setup]
+nixPkgs = [
+  "tesseract5",
+  "tesseract5_traineddata-eng",
+  "tesseract5_traineddata-ara",
+]

@@ -1,0 +1,21 @@
+# Never commit these — they contain secrets
+.env
+credentials.json
+*.db
+*.db-shm
+*.db-wal
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Pytest cache
+.pytest_cache/
+pytest-cache-files-*/
+
+# Temp files
+*.tmp
+*.log
