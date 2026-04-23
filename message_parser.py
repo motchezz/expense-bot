@@ -279,26 +279,46 @@ def _ocr_extract(ocr_text: str, source: str):
                 name_hint = cleaned[:60]
                 break
 
+    # Strip lines that contain GPS coordinates (خط الطول / خط العرض)
+    # These look like decimal numbers but are lat/long, not amounts
+    clean_text = "\n".join(
+        line for line in ocr_text.splitlines()
+        if not re.search(r"خط\s*(الطول|العرض)", line)
+    )
+
     # Total amount: ordered from most specific to least specific
     total_patterns = [
+        # Arabic: صافي القيمة / صافي المبلغ  (net value — most reliable on Arabic receipts)
+        r"صافي\s*(?:القيمة|المبلغ|الإجمالي)?\s*[:\-]?\s*(\d[\d,]*\.\d{2,3})",
+        # Arabic: اجمالي المطلوب / الإجمالي المطلوب
+        r"(?:اجمالي|الإجمالي)\s*المطلوب\s*[:\-]?\s*(\d[\d,]*\.\d{2,3})",
+        # Arabic: المجموع / مجموع / الإجمالي
+        r"(?:المجموع|مجموع|الإجمالي)\s*[:\-]?\s*(\d[\d,]*\.\d{2,3})",
+        # English: total / grand total / amount due / net total
+        r"(?:^|\b)(?:grand\s*total|amount\s*due|net\s*total|total\s*due)\s*[:\-]?\s*(\d[\d,]*\.\d{2,3})",
         r"(?:^|\b)total\s*(?:jd|kd|aed|sar|egp|usd|eur)?\s*[:\-]?\s*(\d[\d,]*\.\d{2,3})",
-        r"(?:grand\s*total|amount\s*due|net\s*total)\s*[:\-]?\s*(\d[\d,]*\.\d{2,3})",
-        r"(?:مجموع|الإجمالي|المجموع)\s*[:\-]?\s*(\d[\d,]*\.\d{2,3})",
         r"total[^\d]{0,20}(\d[\d,]*\.\d{2,3})",
     ]
     total_amount = None
     for pattern in total_patterns:
-        match = re.search(pattern, ocr_text, re.IGNORECASE | re.MULTILINE)
+        match = re.search(pattern, clean_text, re.IGNORECASE | re.MULTILINE)
         if match:
             candidate = float(match.group(1).replace(",", ""))
             if 0 < candidate < 100_000:
                 total_amount = candidate
                 break
 
-    # Fallback: largest decimal number
+    # Fallback: largest decimal number on lines that look like totals
+    # (lines containing total-like keywords, not coordinates or quantities)
     if total_amount is None:
-        all_amounts = re.findall(r"\b(\d{1,6}\.\d{2,3})\b", ocr_text)
-        candidates  = [float(a) for a in all_amounts if 0 < float(a) < 100_000]
+        total_lines = []
+        for line in clean_text.splitlines():
+            # skip lines that are clearly quantities, coords, or item codes
+            if re.search(r"(?:كمية|الكمية|خط|رمز|كود|qty|quantity)", line, re.IGNORECASE):
+                continue
+            nums = re.findall(r"\b(\d{1,6}\.\d{2,3})\b", line)
+            total_lines.extend(nums)
+        candidates = [float(a) for a in total_lines if 0 < float(a) < 100_000]
         if candidates:
             total_amount = max(candidates)
 
